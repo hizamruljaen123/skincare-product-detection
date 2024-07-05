@@ -19,7 +19,7 @@ app.config['DETECTION_RESULT_FOLDER'] = DETECTION_RESULT_FOLDER
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def detect_and_save(image_path, confidence=10, overlap=30):
+def detect_and_save(image_path, confidence=1, overlap=30):
     # Inisialisasi Roboflow hanya saat digunakan
     from roboflow import Roboflow
     rf = Roboflow(api_key=API_KEY)
@@ -87,3 +87,5 @@ def detection_file(filename):
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+#%%
