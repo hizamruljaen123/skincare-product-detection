@@ -3,6 +3,7 @@ import datetime
 import uuid
 from flask import Flask, request, jsonify, send_from_directory, render_template, url_for
 import cv2
+from roboflow import Roboflow
 
 # Konstanta
 API_KEY = "O8csWqO4aBsCcIfx0dDf"
@@ -19,40 +20,44 @@ app.config['DETECTION_RESULT_FOLDER'] = DETECTION_RESULT_FOLDER
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def detect_and_save(image_path, confidence=1, overlap=30):
-    # Inisialisasi Roboflow hanya saat digunakan
-    from roboflow import Roboflow
+def detect_and_save(image_path, confidence=3, overlap=30):
     rf = Roboflow(api_key=API_KEY)
     project = rf.workspace().project(PROJECT_NAME)
     model = project.version(VERSION).model
 
-    # Buat folder jika belum ada
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['DETECTION_RESULT_FOLDER'], exist_ok=True)
 
-    # Buat timestamp dan unique ID untuk penamaan file
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    unique_id = uuid.uuid4().hex[:8]  # Mengambil 8 karakter pertama dari UUID
+    unique_id = uuid.uuid4().hex[:8]
 
-    # Nama file baru berdasarkan timestamp dan unique ID
     new_filename = f"{timestamp}_{unique_id}.jpg"
     upload_image_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
     prediction_image_path = os.path.join(app.config['DETECTION_RESULT_FOLDER'], f"prediction_{new_filename}")
 
-    # Melakukan inferensi pada gambar lokal
     result = model.predict(image_path, confidence=confidence, overlap=overlap).json()
     print(result)
 
-    # Visualisasi prediksi dan simpan hasil ke folder detection_result
-    model.predict(image_path, confidence=confidence, overlap=overlap).save(prediction_image_path)
+    if result['predictions']:
+        best_prediction = max(result['predictions'], key=lambda x: x['confidence'])
 
-    # Salin gambar asli ke folder uploads dengan nama baru
-    os.rename(image_path, upload_image_path)
+        image = cv2.imread(image_path)
+        x, y, w, h = int(best_prediction['x']), int(best_prediction['y']), int(best_prediction['width']), int(best_prediction['height'])
+        cv2.rectangle(image, (x - w // 2, y - h // 2), (x + w // 2, y + h // 2), (0, 255, 0), 2)
+        label = f"{best_prediction['class']} ({best_prediction['confidence']*100:.2f}%)"
+        cv2.putText(image, label, (x - w // 2, y - h // 2 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        cv2.imwrite(prediction_image_path, image)
 
-    print(f"Input image moved to {upload_image_path}")
-    print(f"Prediction saved in {prediction_image_path}")
+        os.rename(image_path, upload_image_path)
 
-    return result, upload_image_path, prediction_image_path
+        print(f"Input image moved to {upload_image_path}")
+        print(f"Prediction saved in {prediction_image_path}")
+
+        return result, upload_image_path, prediction_image_path
+
+    else:
+        os.rename(image_path, upload_image_path)
+        return result, upload_image_path, None
 
 @app.route('/')
 def index():
@@ -70,12 +75,27 @@ def upload_file():
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
         result, upload_path, prediction_path = detect_and_save(file_path)
+
+        detections = [{
+            'class': pred['class'],
+            'confidence': f"{pred['confidence'] * 100:.2f}%",
+            'x': pred['x'],
+            'y': pred['y'],
+            'width': pred['width'],
+            'height': pred['height']
+        } for pred in result['predictions']]
         
-        return jsonify({
+        response = {
             'original_image': url_for('uploaded_file', filename=os.path.basename(upload_path)),
-            'detected_image': url_for('detection_file', filename=os.path.basename(prediction_path))
-        })
+            'detections': detections
+        }
+        if prediction_path:
+            response['detected_image'] = url_for('detection_file', filename=os.path.basename(prediction_path))
+
+        return jsonify(response)
+
     return jsonify({'error': 'Invalid file type'})
+
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
@@ -87,5 +107,3 @@ def detection_file(filename):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-#%%

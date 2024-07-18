@@ -7,7 +7,7 @@
     <title>Object Detection Upload</title>
     <style>
       body {
-        background-color: #f8f9fa;
+        background-color: #e3e8e7;
       }
       h1 {
         margin-bottom: 30px;
@@ -65,11 +65,70 @@
           transform: translateY(-10px);
         }
       }
+      .hover-table tbody tr:hover {
+        background-color: #f1f1f1;
+      }
+      #highlight-box {
+        position: absolute;
+        background-color: rgba(255, 0, 0, 0.5);
+        border: 2px solid red;
+        color: white;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        pointer-events: none;
+        z-index: 100;
+      }
+      #detected-image-container {
+        position: relative;
+        width: 100%;
+        max-height: auto; /* Adjust this value as needed */
+        overflow: hidden;
+      }
+      .details-card {
+        background-color: #f8f9fa;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        margin-top: 10px;
+        padding: 15px;
+      }
+      .details-card h4 {
+        margin-bottom: 10px;
+      }
+      .details-card p {
+        margin-bottom: 5px;
+      }
     </style>
   </head>
   <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <a class="navbar-brand" href="#">Skincare Detector</a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item active">
+            <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">About</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">Services</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">Contact</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
     <div class="container mt-5">
       <h1>Deteksi Skincare</h1>
+      <center>
+        <img src="https://i.ibb.co.com/nmzQdwn/DALL-E-2024-07-18-16-52-56-A-vector-illustration-of-a-skincare-detection-application-with-a-transpar.webp" alt="" width="400px" style="border-radius: 5%;">
+      </center>
+      <img src="" alt="">
       <form id="upload-form" class="text-center">
         <div class="form-group">
           <input type="file" class="form-control-file" id="file-input" required>
@@ -89,15 +148,31 @@
             <h3>Gambar Di Upload</h3>
             <img id="original-image" class="img-fluid" src="" alt="Original Image">
           </div>
-          <div class="col-md-6">
-            <h3>Hasil Dekteksi</h3>
+          <div class="col-md-6 position-relative" id="detected-image-container">
+            <h3>Hasil Deteksi</h3>
             <img id="detected-image" class="img-fluid" src="" alt="Detected Image">
+            <div id="highlight-box"></div>
           </div>
+        </div>
+        <h3 class="mt-4">Deteksi</h3>
+        <div class="table-responsive">
+          <table id="detections-table" class="table table-hover hover-table">
+            <thead>
+              <tr>
+                <th>Nama Produk</th>
+                <th>Tingkat Kepercayaan</th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
-    
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <br>
+    <br>
+    <br>
+    <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
       $(document).ready(function() {
@@ -124,7 +199,29 @@
                 alert(data.error);
               } else {
                 $('#original-image').attr('src', data.original_image);
-                $('#detected-image').attr('src', data.detected_image);
+                $('#detected-image').attr('src', data.original_image);
+                var detectionsTableBody = $('#detections-table tbody');
+                detectionsTableBody.empty();
+                data.detections.forEach(function(detection, index) {
+                  var row = `
+                    <tr class="detection-row" data-index="${index}" data-x="${detection.x}" data-y="${detection.y}" data-width="${detection.width}" data-height="${detection.height}">
+                      <td>${detection.class}</td>
+                      <td>${detection.confidence}</td>
+                    </tr>
+                    <tr class="details-row" style="display: none;">
+                      <td colspan="2">
+                        <div class="details-card">
+                          <h4>${detection.class}</h4>
+                          <p><strong>Jenis Kulit yang Cocok:</strong> Semua jenis kulit</p>
+                          <p><strong>Keterangan:</strong> Produk ini memberikan perlindungan maksimal terhadap sinar matahari dengan kandungan SPF 50 PA++. Teksturnya ringan dan mudah menyerap di kulit.</p>
+                          <p><strong>Efek Samping:</strong> Tidak ada efek samping yang signifikan dilaporkan. Aman digunakan sehari-hari.</p>
+                          <p><strong>Cara Pemakaian:</strong> Oleskan secara merata pada wajah dan leher sebelum terkena paparan sinar matahari. Ulangi pemakaian setiap 2 jam untuk perlindungan maksimal.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                  detectionsTableBody.append(row);
+                });
                 $('#result').show().addClass('fade-in');
               }
             },
@@ -134,6 +231,54 @@
             }
           });
         });
+    
+        // Event listener for table row click
+        $(document).on('click', '.detection-row', function() {
+          var $detailsRow = $(this).next('.details-row');
+          $detailsRow.toggle();
+    
+          var x = $(this).data('x');
+          var y = $(this).data('y');
+          var width = $(this).data('width');
+          var height = $(this).data('height');
+          var label = $(this).find('td:first').text();
+          highlightBox(x, y, width, height, label);
+        });
+    
+        // Function to highlight the box on the detected image
+        function highlightBox(x, y, width, height, label) {
+          var $imageContainer = $('#detected-image-container');
+          var $highlightBox = $('#highlight-box');
+    
+          if ($highlightBox.length === 0) {
+            $highlightBox = $('<div id="highlight-box"></div>');
+            $imageContainer.append($highlightBox);
+          }
+    
+          var img = $('#detected-image')[0];
+          var imgWidth = img.naturalWidth;
+          var imgHeight = img.naturalHeight;
+          var containerWidth = $imageContainer.width();
+          var containerHeight = $imageContainer.height();
+    
+          var scaleX = containerWidth / imgWidth;
+          var scaleY = containerHeight / imgHeight;
+    
+          var scaledX = x * scaleX;
+          var scaledY = y * scaleY;
+          var scaledWidth = width * scaleX;
+          var scaledHeight = height * scaleY;
+    
+          var left = Math.max(0, Math.min(scaledX - scaledWidth / 2, containerWidth - scaledWidth));
+          var top = Math.max(0, Math.min(scaledY - scaledHeight / 2, containerHeight - scaledHeight));
+    
+          $highlightBox.css({
+            'left': left + 'px',
+            'top': top + 'px',
+            'width': scaledWidth + 'px',
+            'height': scaledHeight + 'px'
+          }).text(label);
+        }
       });
     </script>
   </body>
